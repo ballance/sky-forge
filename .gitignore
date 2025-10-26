@@ -1,0 +1,184 @@
+# Drone Utility .gitignore
+
+# ====================
+# Mission Data (Large Files)
+# ====================
+# Exclude mission directories with images and outputs
+missions/*/captured_images/
+missions/*/outputs/
+missions/*/flight_plans/
+missions/*/logs/
+
+# Keep mission structure but not data
+!missions/.gitkeep
+!missions/*/
+!missions/*/mission_config.json
+!missions/*/execution_checklist.txt
+
+# ====================
+# OpenDroneMap Processing
+# ====================
+odm_processing.log
+*.tif
+*.tiff
+*.las
+*.laz
+*.ply
+*.obj
+*.mtl
+*.gltf
+
+# ====================
+# Python
+# ====================
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.log
+.pytest_cache/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# Environments
+.env
+.venv
+
+# ====================
+# IDE & Editors
+# ====================
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ====================
+# OS Specific
+# ====================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ====================
+# Temporary & Log Files
+# ====================
+*.log
+*.tmp
+*.temp
+*.swp
+*.swo
+*~.nib
+
+# ====================
+# Image Processing Outputs
+# ====================
+# Keep sample outputs but ignore large datasets
+*.ortho
+orthomosaic/
+point_cloud/
+3d_models/
+
+# ====================
+# Docker
+# ====================
+docker-compose.override.yml
+
+# ====================
+# Credentials & Secrets
+# ====================
+*.pem
+*.key
+credentials.json
+secrets.json
+.env.local
+.env.production
+
+# ====================
+# Location-Specific Mission Data
+# ====================
+# Exclude files with real GPS coordinates and location names
+*_neighborhood_plan.json
+flight_plan.json
+preflight_report_*.json
+
+# Exclude specific mission directories (keep only example missions)
+missions/*InitialMap/
+missions/archives/Mission_*/
+
+# ====================
+# Keep Example/Template Files
+# ====================
+!examples/
+!templates/
+!docs/
+!missions/example_mission/
