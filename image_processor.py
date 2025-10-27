@@ -127,14 +127,21 @@ class ImageProcessor:
         """
         default_options = {
             'dsm': True,  # Digital Surface Model
-            'dtm': True,  # Digital Terrain Model
-            'orthophoto-resolution': 5,  # cm/pixel
-            'min-num-features': 10000,
-            'use-3dmesh': True,
-            'mesh-octree-depth': 11,
+            'dtm': False,  # Skip DTM for speed
+            'orthophoto-resolution': 10,  # Reduced resolution for speed
+            'min-num-features': 4000,  # Significantly reduced for 700+ images
+            'feature-quality': 'medium',  # Medium quality (faster)
+            'pc-quality': 'medium',  # Medium point cloud quality
+            'use-3dmesh': False,  # Skip 3D mesh for speed
+            'fast-orthophoto': True,  # Use fast orthophoto generation
             'ignore-gsd': False,
-            'matcher-neighbors': 8,
-            'auto-boundary': True
+            'matcher-neighbors': 6,  # Reduced from 8
+            'auto-boundary': True,
+            # Memory optimization for large datasets (700+ images)
+            'split': 250,  # Larger groups (fewer merges)
+            'split-overlap': 100,  # Reduced overlap
+            'max-concurrency': 2,  # Limit parallel processes
+            'optimize-disk-space': True  # Clean up intermediate files
         }
 
         if options:
@@ -163,16 +170,38 @@ class ImageProcessor:
 
         print(f"Running OpenDroneMap via Docker...")
         print(f"Project: {project_name}")
-        print(f"Command: {' '.join(cmd)}")
+        print(f"Command: {' '.join(cmd)}\n")
+        print("=" * 60)
+        print("ODM PROCESSING OUTPUT (this may take 1-3 hours)")
+        print("=" * 60)
 
         try:
-            # Run with real-time output
-            result = subprocess.run(cmd, text=True)
-            if result.returncode == 0:
-                print("\nOpenDroneMap processing completed successfully!")
+            # Run with real-time output streaming
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                universal_newlines=True
+            )
+
+            # Stream output in real-time
+            for line in process.stdout:
+                print(line, end='')
+
+            # Wait for completion
+            process.wait()
+
+            if process.returncode == 0:
+                print("\n" + "=" * 60)
+                print("OpenDroneMap processing completed successfully!")
+                print("=" * 60)
                 return True
             else:
-                print(f"\nOpenDroneMap processing failed with return code: {result.returncode}")
+                print("\n" + "=" * 60)
+                print(f"OpenDroneMap processing failed with return code: {process.returncode}")
+                print("=" * 60)
                 return False
         except FileNotFoundError:
             print("Docker not found. Please install Docker first.")
@@ -250,58 +279,166 @@ class ImageProcessor:
             self.generate_coverage_map(image_info)
 
     def generate_coverage_map(self, image_info: List[Dict]):
-        """Generate a simple HTML map showing photo locations"""
+        """Generate an interactive HTML map showing all photo locations"""
         gps_images = [img for img in image_info if img['gps']]
 
         if not gps_images:
             return
 
-        # Calculate center point
+        # Calculate center point and bounds
         avg_lat = sum(img['gps']['latitude'] for img in gps_images) / len(gps_images)
         avg_lon = sum(img['gps']['longitude'] for img in gps_images) / len(gps_images)
+
+        # Calculate min/max for bounds
+        lats = [img['gps']['latitude'] for img in gps_images]
+        lons = [img['gps']['longitude'] for img in gps_images]
+        min_lat, max_lat = min(lats), max(lats)
+        min_lon, max_lon = min(lons), max(lons)
 
         html_content = f"""<!DOCTYPE html>
 <html>
 <head>
     <title>Drone Photo Coverage Map</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        #map {{ height: 600px; width: 100%; }}
-        body {{ margin: 0; padding: 20px; font-family: Arial, sans-serif; }}
-        h1 {{ color: #333; }}
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+        }}
+        .header {{
+            background: white;
+            padding: 20px 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 1000;
+        }}
+        .header h1 {{
+            color: #2c3e50;
+            font-size: 24px;
+            margin-bottom: 8px;
+        }}
+        .stats {{
+            display: flex;
+            gap: 20px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }}
+        .stat {{
+            background: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 6px;
+            border-left: 3px solid #ff6b35;
+        }}
+        .stat-label {{
+            font-size: 11px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        .stat-value {{
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-top: 2px;
+        }}
+        #map {{
+            height: calc(100vh - 160px);
+            width: 100%;
+        }}
+        .leaflet-popup-content {{
+            font-size: 13px;
+            line-height: 1.5;
+        }}
+        .photo-popup {{
+            font-family: monospace;
+            color: #2c3e50;
+        }}
     </style>
 </head>
 <body>
-    <h1>Drone Mapping Coverage - {len(gps_images)} Photos</h1>
+    <div class="header">
+        <h1>🗺️ Drone Mapping Coverage</h1>
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-label">Total Photos</div>
+                <div class="stat-value">{len(gps_images)}</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Coverage Area</div>
+                <div class="stat-value">{abs(max_lat - min_lat) * 111000:.0f}m × {abs(max_lon - min_lon) * 111000 * abs(avg_lat / 90):.0f}m</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">Center Point</div>
+                <div class="stat-value">{avg_lat:.6f}, {avg_lon:.6f}</div>
+            </div>
+        </div>
+    </div>
     <div id="map"></div>
     <script>
-        var map = L.map('map').setView([{avg_lat}, {avg_lon}], 17);
+        // Initialize map
+        var map = L.map('map', {{
+            zoomControl: true,
+            attributionControl: true
+        }});
 
+        // Add OpenStreetMap tile layer
         L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
-            attribution: '© OpenStreetMap contributors'
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 19
         }}).addTo(map);
 
+        // Photo data
         var photos = {json.dumps([{
             'lat': img['gps']['latitude'],
             'lon': img['gps']['longitude'],
+            'alt': img['gps'].get('altitude'),
             'name': img['filename']
         } for img in gps_images])};
 
-        photos.forEach(function(photo) {{
-            L.circleMarker([photo.lat, photo.lon], {{
-                radius: 5,
-                fillColor: "#ff7800",
-                color: "#000",
-                weight: 1,
+        // Add markers for each photo
+        var markers = [];
+        photos.forEach(function(photo, index) {{
+            var marker = L.circleMarker([photo.lat, photo.lon], {{
+                radius: 6,
+                fillColor: '#ff6b35',
+                color: '#ffffff',
+                weight: 2,
                 opacity: 1,
-                fillOpacity: 0.8
-            }}).addTo(map).bindPopup(photo.name);
+                fillOpacity: 0.85
+            }});
+
+            // Create popup content
+            var popupContent = '<div class="photo-popup">';
+            popupContent += '<strong>Photo #' + (index + 1) + '</strong><br>';
+            popupContent += photo.name + '<br>';
+            popupContent += 'Lat: ' + photo.lat.toFixed(6) + '<br>';
+            popupContent += 'Lon: ' + photo.lon.toFixed(6);
+            if (photo.alt) {{
+                popupContent += '<br>Alt: ' + photo.alt.toFixed(1) + 'm';
+            }}
+            popupContent += '</div>';
+
+            marker.bindPopup(popupContent);
+            marker.addTo(map);
+            markers.push(marker);
         }});
 
-        // Fit map to show all markers
-        var group = L.featureGroup(photos.map(p => L.marker([p.lat, p.lon])));
-        map.fitBounds(group.getBounds().pad(0.1));
+        // Fit map to show all markers with padding
+        var bounds = L.latLngBounds(photos.map(p => [p.lat, p.lon]));
+        map.fitBounds(bounds, {{ padding: [50, 50] }});
+
+        // Add scale control
+        L.control.scale({{ imperial: true, metric: true }}).addTo(map);
+
+        console.log('Coverage map loaded: ' + photos.length + ' photos');
     </script>
 </body>
 </html>"""
@@ -311,6 +448,7 @@ class ImageProcessor:
             f.write(html_content)
 
         print(f"  Coverage map saved to: {map_file}")
+        print(f"  Open with: open {map_file}")
 
 def main():
     parser = argparse.ArgumentParser(description="Process drone images into maps")

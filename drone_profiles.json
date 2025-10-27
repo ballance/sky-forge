@@ -1,0 +1,155 @@
+{
+  "profiles": {
+    "potensic_atom_2": {
+      "name": "Potensic Atom 2",
+      "camera": {
+        "sensor_width_mm": 6.17,
+        "sensor_height_mm": 4.63,
+        "focal_length_mm": 4.5,
+        "image_width_px": 4000,
+        "image_height_px": 3000,
+        "resolution_mp": 12,
+        "video_resolution": "4K (3840x2160)"
+      },
+      "flight": {
+        "max_flight_time_min": 32,
+        "cruise_speed_ms": 8.0,
+        "max_speed_ms": 16.0,
+        "max_altitude_m": 120,
+        "hover_accuracy_m": 0.5
+      },
+      "features": {
+        "gps": true,
+        "return_to_home": true,
+        "gimbal_axes": 3,
+        "obstacle_avoidance": false
+      }
+    },
+    "dji_mini_3_pro": {
+      "name": "DJI Mini 3 Pro",
+      "camera": {
+        "sensor_width_mm": 9.7,
+        "sensor_height_mm": 7.3,
+        "focal_length_mm": 6.7,
+        "image_width_px": 4032,
+        "image_height_px": 3024,
+        "resolution_mp": 12,
+        "video_resolution": "4K (3840x2160)"
+      },
+      "flight": {
+        "max_flight_time_min": 34,
+        "cruise_speed_ms": 10.0,
+        "max_speed_ms": 16.0,
+        "max_altitude_m": 120,
+        "hover_accuracy_m": 0.3
+      },
+      "features": {
+        "gps": true,
+        "return_to_home": true,
+        "gimbal_axes": 3,
+        "obstacle_avoidance": true
+      }
+    },
+    "dji_air_3": {
+      "name": "DJI Air 3",
+      "camera": {
+        "sensor_width_mm": 13.2,
+        "sensor_height_mm": 8.8,
+        "focal_length_mm": 24,
+        "image_width_px": 8064,
+        "image_height_px": 6048,
+        "resolution_mp": 48,
+        "video_resolution": "4K (3840x2160)"
+      },
+      "flight": {
+        "max_flight_time_min": 46,
+        "cruise_speed_ms": 12.0,
+        "max_speed_ms": 21.0,
+        "max_altitude_m": 120,
+        "hover_accuracy_m": 0.1
+      },
+      "features": {
+        "gps": true,
+        "return_to_home": true,
+        "gimbal_axes": 3,
+        "obstacle_avoidance": true
+      }
+    },
+    "dji_mavic_3": {
+      "name": "DJI Mavic 3",
+      "camera": {
+        "sensor_width_mm": 17.3,
+        "sensor_height_mm": 13.0,
+        "focal_length_mm": 24,
+        "image_width_px": 5280,
+        "image_height_px": 3956,
+        "resolution_mp": 20,
+        "video_resolution": "5.1K (5120x2700)"
+      },
+      "flight": {
+        "max_flight_time_min": 46,
+        "cruise_speed_ms": 15.0,
+        "max_speed_ms": 21.0,
+        "max_altitude_m": 120,
+        "hover_accuracy_m": 0.1
+      },
+      "features": {
+        "gps": true,
+        "return_to_home": true,
+        "gimbal_axes": 3,
+        "obstacle_avoidance": true
+      }
+    },
+    "autel_evo_lite": {
+      "name": "Autel EVO Lite+",
+      "camera": {
+        "sensor_width_mm": 17.3,
+        "sensor_height_mm": 13.0,
+        "focal_length_mm": 24,
+        "image_width_px": 5472,
+        "image_height_px": 3648,
+        "resolution_mp": 20,
+        "video_resolution": "6K (6016x3200)"
+      },
+      "flight": {
+        "max_flight_time_min": 40,
+        "cruise_speed_ms": 12.0,
+        "max_speed_ms": 20.0,
+        "max_altitude_m": 120,
+        "hover_accuracy_m": 0.1
+      },
+      "features": {
+        "gps": true,
+        "return_to_home": true,
+        "gimbal_axes": 3,
+        "obstacle_avoidance": true
+      }
+    },
+    "custom": {
+      "name": "Custom Drone",
+      "camera": {
+        "sensor_width_mm": 6.17,
+        "sensor_height_mm": 4.63,
+        "focal_length_mm": 4.5,
+        "image_width_px": 4000,
+        "image_height_px": 3000,
+        "resolution_mp": 12,
+        "video_resolution": "4K"
+      },
+      "flight": {
+        "max_flight_time_min": 30,
+        "cruise_speed_ms": 8.0,
+        "max_speed_ms": 15.0,
+        "max_altitude_m": 120,
+        "hover_accuracy_m": 0.5
+      },
+      "features": {
+        "gps": true,
+        "return_to_home": true,
+        "gimbal_axes": 3,
+        "obstacle_avoidance": false
+      }
+    }
+  },
+  "default_profile": "potensic_atom_2"
+}

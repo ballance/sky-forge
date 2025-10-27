@@ -4,7 +4,7 @@ A comprehensive Python-based toolkit for planning, executing, and processing dro
 
 ## Overview
 
-This toolkit was designed for mapping neighborhood-scale areas (up to 100 acres) using consumer drones like the Potensic Atom 2. It integrates flight planning, preflight safety checks, and professional photogrammetry processing using OpenDroneMap.
+This toolkit is designed for mapping areas of any size (from small properties to 100+ acre sites) using consumer drones. It supports multiple drone platforms including DJI, Autel, Potensic, and custom configurations. The system integrates flight planning, preflight safety checks, and professional photogrammetry processing using OpenDroneMap.
 
 ### Key Features
 
@@ -22,6 +22,7 @@ drone-util/
 ├── flight_planner.py         # Flight path generation
 ├── preflight_checklist.py    # Safety validation system
 ├── image_processor.py        # Photogrammetry pipeline
+├── drone_profiles.json       # Drone specifications database
 ├── missions/                 # Mission data directory
 │   └── [MissionName]/
 │       ├── flight_plans/     # Generated flight paths
@@ -30,7 +31,8 @@ drone-util/
 │       ├── logs/             # Mission logs
 │       └── mission_config.json
 ├── .gitignore
-└── claude.md                 # This file
+├── README.md                 # Quick start guide
+└── CLAUDE.md                 # This file (detailed documentation)
 ```
 
 ## System Architecture
@@ -47,8 +49,11 @@ Central orchestrator that manages the entire workflow.
 
 **Usage:**
 ```bash
-# View mission summary and estimates
+# View mission summary and estimates (uses default 40 acre area)
 python mission_control.py --mission YourMissionName
+
+# Create mission with specific drone and area size
+python mission_control.py --mission MyFarm --drone dji_mini_3_pro --area-acres 50
 
 # Run preflight checks
 python mission_control.py --mission YourMissionName --action preflight --lat 40.7128 --lon -74.0060
@@ -74,19 +79,33 @@ Generates optimal flight paths with proper overlap and coverage.
 - GPS waypoint generation
 - Multiple export formats (JSON, KML, Litchi CSV)
 
-**Configuration:**
-```python
-DroneSpecs:
-- Sensor: 1/1.28" CMOS (12MP)
-- Focal length: 24mm equivalent
-- Max flight time: 32 minutes
-- Cruise speed: 8 m/s
+**Supported Drones:**
+- Potensic Atom 2
+- DJI Mini 3 Pro
+- DJI Air 3
+- DJI Mavic 3
+- Autel EVO Lite+
+- Custom (user-defined specifications)
 
-MappingParams:
+**Configuration:**
+All drone specifications are stored in `drone_profiles.json`. Each profile includes:
+- Camera sensor dimensions and resolution
+- Flight capabilities (speed, endurance, altitude)
+- GPS and gimbal features
+
+```bash
+# List available drone profiles
+python flight_planner.py --list-drones
+
+# Generate plan with specific drone
+python flight_planner.py --drone dji_mini_3_pro --center-lat 40.7128 --center-lon -74.0060
+```
+
+**Default Mapping Parameters:**
 - Altitude: 70m (configurable)
 - Forward overlap: 70%
 - Side overlap: 60%
-- Target GSD: 2.0 cm/pixel
+- Target GSD: ~2.0 cm/pixel (varies by drone)
 ```
 
 ### 3. Preflight Checklist (`preflight_checklist.py`)
@@ -199,26 +218,26 @@ FAA_API_KEY=your_key_here
 ### Example 1: Complete Mission Workflow
 
 ```bash
-# 1. Create new mission and view estimates
-python mission_control.py --mission MyNeighborhood
+# 1. Create new mission for 75-acre farm with DJI Air 3
+python mission_control.py --mission FarmSurvey2025 --drone dji_air_3 --area-acres 75
 
 # 2. Run preflight checks
-python mission_control.py --mission MyNeighborhood \
+python mission_control.py --mission FarmSurvey2025 \
   --action preflight \
   --lat 40.7128 \
   --lon -74.0060
 
 # 3. Generate flight plan
-python mission_control.py --mission MyNeighborhood \
+python mission_control.py --mission FarmSurvey2025 \
   --action plan \
   --lat 40.7128 \
   --lon -74.0060
 
 # 4. Fly the mission (manual - upload waypoints to drone)
-# Copy images to missions/MyNeighborhood/captured_images/
+# Copy images to missions/FarmSurvey2025/captured_images/
 
 # 5. Process images with OpenDroneMap
-python mission_control.py --mission MyNeighborhood \
+python mission_control.py --mission FarmSurvey2025 \
   --action process \
   --use-odm
 ```
@@ -416,10 +435,11 @@ Each mission has a `mission_config.json`:
 
 ```json
 {
-  "mission_name": "MyNeighborhood",
-  "target_houses": 96,
-  "estimated_area_m2": 160000,
-  "drone_model": "Potensic Atom 2",
+  "mission_name": "FarmSurvey2025",
+  "mission_type": "area_mapping",
+  "estimated_area_m2": 303525,
+  "estimated_area_acres": 75.0,
+  "drone_profile": "dji_air_3",
   "mapping_parameters": {
     "altitude_m": 70,
     "forward_overlap": 70,
@@ -439,6 +459,44 @@ Each mission has a `mission_config.json`:
   }
 }
 ```
+
+## Adding Custom Drone Profiles
+
+To add your own drone, edit `drone_profiles.json`:
+
+```json
+{
+  "profiles": {
+    "my_custom_drone": {
+      "name": "My Custom Drone",
+      "camera": {
+        "sensor_width_mm": 13.2,
+        "sensor_height_mm": 8.8,
+        "focal_length_mm": 24,
+        "image_width_px": 5472,
+        "image_height_px": 3648,
+        "resolution_mp": 20,
+        "video_resolution": "4K"
+      },
+      "flight": {
+        "max_flight_time_min": 30,
+        "cruise_speed_ms": 10.0,
+        "max_speed_ms": 18.0,
+        "max_altitude_m": 120,
+        "hover_accuracy_m": 0.3
+      },
+      "features": {
+        "gps": true,
+        "return_to_home": true,
+        "gimbal_axes": 3,
+        "obstacle_avoidance": true
+      }
+    }
+  }
+}
+```
+
+Then use it: `--drone my_custom_drone`
 
 ## Best Practices
 
@@ -514,8 +572,9 @@ Each mission has a `mission_config.json`:
 ## Acknowledgments
 
 - OpenDroneMap team for the amazing photogrammetry tools
-- Potensic for reliable consumer drones
+- Consumer drone manufacturers (DJI, Autel, Potensic, etc.) for making aerial mapping accessible
 - FAA for comprehensive safety guidelines
+- Open source community for tools and inspiration
 
 ---
 

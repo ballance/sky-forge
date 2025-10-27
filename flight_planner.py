@@ -1,28 +1,77 @@
 #!/usr/bin/env python3
 """
-Automated Flight Planning for Neighborhood Drone Mapping
-Generates optimal flight paths for the Potensic Atom 2 drone
+Automated Flight Planning for Drone Mapping
+Generates optimal flight paths for configurable drone platforms
 """
 
 import json
 import math
 import os
 from dataclasses import dataclass
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Optional
 import argparse
 from datetime import datetime
+from pathlib import Path
 
 @dataclass
 class DroneSpecs:
-    """Potensic Atom 2 specifications"""
-    camera_sensor_width: float = 6.17  # mm (1/2.3" sensor)
+    """Configurable drone specifications"""
+    name: str = "Generic Drone"
+    camera_sensor_width: float = 6.17  # mm
     camera_sensor_height: float = 4.63  # mm
-    focal_length: float = 4.5  # mm (approximate)
-    image_width: int = 4000  # pixels (12MP photo mode)
+    focal_length: float = 4.5  # mm
+    image_width: int = 4000  # pixels
     image_height: int = 3000  # pixels
     max_flight_time: int = 32  # minutes
     cruise_speed: float = 8.0  # m/s
     max_altitude: float = 120  # meters (FAA limit)
+
+    @classmethod
+    def from_profile(cls, profile_name: str = None) -> 'DroneSpecs':
+        """Load drone specs from profiles JSON file"""
+        profiles_file = Path(__file__).parent / "drone_profiles.json"
+
+        if not profiles_file.exists():
+            print(f"Warning: drone_profiles.json not found, using default specs")
+            return cls()
+
+        with open(profiles_file, 'r') as f:
+            data = json.load(f)
+
+        # Use specified profile or default
+        if profile_name is None:
+            profile_name = data.get('default_profile', 'potensic_atom_2')
+
+        if profile_name not in data['profiles']:
+            available = ', '.join(data['profiles'].keys())
+            raise ValueError(f"Profile '{profile_name}' not found. Available: {available}")
+
+        profile = data['profiles'][profile_name]
+
+        return cls(
+            name=profile['name'],
+            camera_sensor_width=profile['camera']['sensor_width_mm'],
+            camera_sensor_height=profile['camera']['sensor_height_mm'],
+            focal_length=profile['camera']['focal_length_mm'],
+            image_width=profile['camera']['image_width_px'],
+            image_height=profile['camera']['image_height_px'],
+            max_flight_time=profile['flight']['max_flight_time_min'],
+            cruise_speed=profile['flight']['cruise_speed_ms'],
+            max_altitude=profile['flight']['max_altitude_m']
+        )
+
+    @classmethod
+    def list_available_profiles(cls) -> List[str]:
+        """List all available drone profiles"""
+        profiles_file = Path(__file__).parent / "drone_profiles.json"
+
+        if not profiles_file.exists():
+            return []
+
+        with open(profiles_file, 'r') as f:
+            data = json.load(f)
+
+        return list(data['profiles'].keys())
 
 @dataclass
 class MappingParams:
@@ -234,7 +283,25 @@ class FlightPlanner:
         return flights
 
 def main():
-    parser = argparse.ArgumentParser(description="Generate flight plan for drone mapping")
+    parser = argparse.ArgumentParser(
+        description="Generate flight plan for drone mapping",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # List available drone profiles
+  python flight_planner.py --list-drones
+
+  # Generate plan with specific drone
+  python flight_planner.py --drone dji_mini_3_pro --center-lat 40.7128 --center-lon -74.0060
+
+  # Custom area size
+  python flight_planner.py --area-size 800 --center-lat 40.7128 --center-lon -74.0060
+        """
+    )
+    parser.add_argument("--drone", type=str, default=None,
+                       help="Drone profile name (see --list-drones)")
+    parser.add_argument("--list-drones", action="store_true",
+                       help="List available drone profiles")
     parser.add_argument("--area-size", type=float, default=500,
                        help="Approximate area size in meters (square)")
     parser.add_argument("--center-lat", type=float, default=40.7128,
@@ -248,10 +315,27 @@ def main():
 
     args = parser.parse_args()
 
-    # Initialize planner
-    drone = DroneSpecs()
+    # List drones if requested
+    if args.list_drones:
+        profiles = DroneSpecs.list_available_profiles()
+        print("\nAvailable Drone Profiles:")
+        print("=" * 50)
+        for profile_name in profiles:
+            drone = DroneSpecs.from_profile(profile_name)
+            print(f"\n{profile_name}")
+            print(f"  Name: {drone.name}")
+            print(f"  Resolution: {drone.image_width}x{drone.image_height} ({drone.image_width * drone.image_height // 1000000}MP)")
+            print(f"  Flight Time: {drone.max_flight_time} min")
+            print(f"  Cruise Speed: {drone.cruise_speed} m/s")
+        print("\n" + "=" * 50)
+        return
+
+    # Initialize planner with selected drone
+    drone = DroneSpecs.from_profile(args.drone)
     params = MappingParams(altitude=args.altitude)
     planner = FlightPlanner(drone, params)
+
+    print(f"\n🚁 Using drone: {drone.name}")
 
     # Generate boundary (square around center point)
     half_size = args.area_size / 2
@@ -276,8 +360,8 @@ def main():
 
     # Prepare output
     output = {
-        "mission_name": f"Neighborhood_Mapping_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-        "drone": "Potensic Atom 2",
+        "mission_name": f"Mapping_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+        "drone": drone.name,
         "creation_date": datetime.now().isoformat(),
         "parameters": {
             "altitude_m": params.altitude,

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Mission Control Center for Neighborhood Drone Mapping
+Mission Control Center for Drone Mapping
 Central command interface for all mapping operations
 """
 
@@ -14,7 +14,7 @@ import subprocess
 from typing import Dict, List, Optional
 
 class MissionControl:
-    def __init__(self, mission_name: str = None):
+    def __init__(self, mission_name: str = None, drone_profile: str = None, area_m2: int = None):
         self.mission_name = mission_name or f"Mission_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         self.mission_dir = Path(f"missions/{self.mission_name}")
         self.mission_dir.mkdir(parents=True, exist_ok=True)
@@ -28,9 +28,9 @@ class MissionControl:
         for dir in [self.plans_dir, self.images_dir, self.outputs_dir, self.logs_dir]:
             dir.mkdir(parents=True, exist_ok=True)
 
-        self.config = self.load_or_create_config()
+        self.config = self.load_or_create_config(drone_profile, area_m2)
 
-    def load_or_create_config(self) -> Dict:
+    def load_or_create_config(self, drone_profile: str = None, area_m2: int = None) -> Dict:
         """Load or create mission configuration"""
         config_file = self.mission_dir / "mission_config.json"
 
@@ -38,12 +38,13 @@ class MissionControl:
             with open(config_file, 'r') as f:
                 return json.load(f)
 
-        # Default configuration for 96-house neighborhood
+        # Default configuration - generic mapping mission
         config = {
             'mission_name': self.mission_name,
-            'target_houses': 96,
-            'estimated_area_m2': 160000,  # ~40 acres for 96 houses
-            'drone_model': 'Potensic Atom 2',
+            'mission_type': 'area_mapping',
+            'estimated_area_m2': area_m2 or 160000,  # Default ~40 acres
+            'estimated_area_acres': round((area_m2 or 160000) / 4047, 1),
+            'drone_profile': drone_profile or 'potensic_atom_2',
             'mapping_parameters': {
                 'altitude_m': 70,
                 'forward_overlap': 70,
@@ -97,17 +98,23 @@ class MissionControl:
             return False
 
     def generate_flight_plan(self, center_lat: float, center_lon: float,
-                           area_size: float = 400) -> str:
+                           area_size: float = None) -> str:
         """Generate optimized flight plan"""
         print("\n" + "="*60)
         print("📍 GENERATING FLIGHT PLAN")
         print("="*60)
+
+        # Calculate area_size from config if not provided
+        if area_size is None:
+            area_m2 = self.config.get('estimated_area_m2', 160000)
+            area_size = int((area_m2 ** 0.5))  # Square root for side length
 
         output_file = self.plans_dir / f"flight_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
 
         cmd = [
             sys.executable,
             'flight_planner.py',
+            '--drone', self.config.get('drone_profile', 'potensic_atom_2'),
             '--center-lat', str(center_lat),
             '--center-lon', str(center_lon),
             '--area-size', str(area_size),
@@ -129,6 +136,43 @@ class MissionControl:
         except Exception as e:
             print(f"Error generating flight plan: {e}")
             return None
+
+    def monitor_odm_processing(self):
+        """Monitor active OpenDroneMap Docker container"""
+        print("\n" + "="*60)
+        print("👀 MONITORING ODM PROCESSING")
+        print("="*60)
+
+        try:
+            # Find running ODM container
+            result = subprocess.run(
+                ['docker', 'ps', '--filter', 'ancestor=opendronemap/odm', '--format', '{{.ID}} {{.Names}}'],
+                capture_output=True,
+                text=True
+            )
+
+            if not result.stdout.strip():
+                print("❌ No active ODM containers found")
+                print("\nTip: Start processing first with:")
+                print(f"  python mission_control.py --mission {self.mission_name} --action process --use-odm")
+                return
+
+            container_id = result.stdout.strip().split()[0]
+            container_name = result.stdout.strip().split()[1] if len(result.stdout.strip().split()) > 1 else container_id
+
+            print(f"✅ Found ODM container: {container_name} ({container_id[:12]})")
+            print("\nStreaming logs (Ctrl+C to stop)...\n")
+            print("="*60)
+
+            # Tail the logs
+            subprocess.run(['docker', 'logs', '-f', container_id])
+
+        except KeyboardInterrupt:
+            print("\n\n" + "="*60)
+            print("Stopped monitoring (container still running)")
+            print("="*60)
+        except Exception as e:
+            print(f"Error monitoring container: {e}")
 
     def process_images(self, use_odm: bool = False) -> bool:
         """Process captured images into maps"""
@@ -154,27 +198,24 @@ class MissionControl:
             cmd.append('--simple-mosaic')
 
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True)
-            print(result.stdout)
-            return "successfully" in result.stdout.lower()
+            # Stream output in real-time instead of capturing it
+            result = subprocess.run(cmd, text=True)
+            return result.returncode == 0
 
         except Exception as e:
             print(f"Error processing images: {e}")
             return False
 
     def estimate_mission_stats(self) -> Dict:
-        """Estimate mission statistics for 96-house neighborhood"""
-        # Typical suburban neighborhood assumptions
-        avg_lot_size = 1600  # m² (~0.4 acres)
-        total_area = avg_lot_size * self.config['target_houses']
-
-        # Including streets and common areas (add 30%)
-        total_area_with_streets = total_area * 1.3
+        """Estimate mission statistics based on area and drone specs"""
+        # Get total area from config
+        total_area = self.config.get('estimated_area_m2', 160000)
 
         # Calculate based on drone capabilities
         from flight_planner import DroneSpecs, MappingParams, FlightPlanner
 
-        drone = DroneSpecs()
+        drone_profile = self.config.get('drone_profile', 'potensic_atom_2')
+        drone = DroneSpecs.from_profile(drone_profile)
         params = MappingParams(altitude=self.config['mapping_parameters']['altitude_m'])
         planner = FlightPlanner(drone, params)
 
@@ -186,20 +227,21 @@ class MissionControl:
         side_overlap = self.config['mapping_parameters']['side_overlap'] / 100
         effective_area_per_image = area_per_image * (1 - forward_overlap) * (1 - side_overlap)
 
-        total_images = int(total_area_with_streets / effective_area_per_image * 1.2)  # 20% safety margin
+        total_images = int(total_area / effective_area_per_image * 1.2)  # 20% safety margin
 
         # Time estimation
         photo_time = total_images * 2  # 2 seconds per photo
-        flight_distance = (total_area_with_streets ** 0.5) * 20  # Rough estimate
+        flight_distance = (total_area ** 0.5) * 20  # Rough estimate
         flight_time = flight_distance / drone.cruise_speed
         total_time = (photo_time + flight_time) / 60  # Convert to minutes
 
         batteries_needed = int(total_time / (drone.max_flight_time * 0.8)) + 1
 
         stats = {
-            'target_houses': self.config['target_houses'],
-            'estimated_total_area_m2': int(total_area_with_streets),
-            'estimated_total_area_acres': round(total_area_with_streets / 4047, 1),
+            'drone_name': drone.name,
+            'drone_profile': drone_profile,
+            'estimated_total_area_m2': int(total_area),
+            'estimated_total_area_acres': round(total_area / 4047, 1),
             'estimated_images': total_images,
             'estimated_flight_time_min': round(total_time, 1),
             'estimated_batteries': batteries_needed,
@@ -216,10 +258,11 @@ class MissionControl:
         stats = self.estimate_mission_stats()
 
         print("\n" + "="*60)
-        print("🏘️  NEIGHBORHOOD MAPPING MISSION SUMMARY")
+        print("🗺️  DRONE MAPPING MISSION SUMMARY")
         print("="*60)
         print(f"\nMission: {self.mission_name}")
-        print(f"Target: {stats['target_houses']} houses")
+        print(f"Drone: {stats['drone_name']}")
+        print(f"Type: {self.config.get('mission_type', 'area_mapping').replace('_', ' ').title()}")
         print(f"\n📊 ESTIMATED MISSION STATISTICS:")
         print(f"  • Total Area: {stats['estimated_total_area_acres']} acres ({stats['estimated_total_area_m2']:,} m²)")
         print(f"  • Photos Required: ~{stats['estimated_images']:,}")
@@ -316,19 +359,45 @@ PHASE 5: DELIVERY
         print(f"\n📝 Execution checklist saved to: {checklist_file}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Mission Control for Drone Mapping")
+    parser = argparse.ArgumentParser(
+        description="Mission Control for Drone Mapping",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Create new mission with DJI Mini 3 Pro for 50 acre area
+  python mission_control.py --mission MyFarm --drone dji_mini_3_pro --area-acres 50
+
+  # Create default mission and view summary
+  python mission_control.py --mission TestArea
+
+  # Generate flight plan
+  python mission_control.py --mission TestArea --action plan --lat 40.7128 --lon -74.0060
+
+  # Process images with OpenDroneMap
+  python mission_control.py --mission TestArea --action process --use-odm
+        """
+    )
     parser.add_argument("--mission", type=str, help="Mission name")
+    parser.add_argument("--drone", type=str, default=None,
+                       help="Drone profile to use (see flight_planner.py --list-drones)")
+    parser.add_argument("--area-acres", type=float, help="Estimated mapping area in acres")
+    parser.add_argument("--area-m2", type=int, help="Estimated mapping area in square meters")
     parser.add_argument("--lat", type=float, help="Center latitude")
     parser.add_argument("--lon", type=float, help="Center longitude")
-    parser.add_argument("--action", choices=['plan', 'preflight', 'process', 'summary'],
+    parser.add_argument("--action", choices=['plan', 'preflight', 'process', 'summary', 'monitor'],
                        help="Action to perform")
     parser.add_argument("--use-odm", action="store_true",
                        help="Use OpenDroneMap for processing (requires Docker)")
 
     args = parser.parse_args()
 
+    # Convert area if provided in acres
+    area_m2 = args.area_m2
+    if args.area_acres:
+        area_m2 = int(args.area_acres * 4047)
+
     # Initialize mission control
-    control = MissionControl(args.mission)
+    control = MissionControl(args.mission, drone_profile=args.drone, area_m2=area_m2)
 
     if args.action == 'summary' or not args.action:
         control.print_mission_summary()
@@ -348,6 +417,9 @@ def main():
 
     elif args.action == 'process':
         control.process_images(use_odm=args.use_odm)
+
+    elif args.action == 'monitor':
+        control.monitor_odm_processing()
 
     print("\n" + "="*60)
     print("🎯 Mission Control Ready")
