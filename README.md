@@ -1,4 +1,4 @@
-# Drone Mapping Utility Suite
+# Sky-Forge - a Drone Mapping Utility Suite
 
 Professional drone mapping toolkit for creating orthomosaics, 3D models, and terrain maps from aerial imagery.
 
