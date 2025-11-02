@@ -8,8 +8,8 @@ Professional drone mapping toolkit for creating orthomosaics, 3D models, and ter
 
 ```bash
 # Clone repository
-git clone <repository-url>
-cd drone-util
+git clone git@github.com:ballance/sky-forge.git
+cd sky-forge
 
 # Install Python dependencies
 pip install exifread piexif
