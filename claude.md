@@ -11,6 +11,7 @@ This toolkit is designed for mapping areas of any size (from small properties to
 - **Mission Planning**: Automated flight path generation with optimal coverage
 - **Preflight Checks**: Comprehensive safety validation (weather, airspace, regulations)
 - **Image Processing**: Professional photogrammetry pipeline via OpenDroneMap
+- **Web Tile Generation**: Fast-loading map tiles for web viewing (NEW!)
 - **GPS Integration**: Automatic geotagging and georeferencing
 - **Progress Tracking**: Mission organization with detailed reporting
 
@@ -28,6 +29,12 @@ drone-util/
 │       ├── flight_plans/     # Generated flight paths
 │       ├── captured_images/  # Drone photos (gitignored)
 │       ├── outputs/          # Processing results (gitignored)
+│       │   ├── tiles/        # Web map tiles (XYZ format)
+│       │   ├── tiled_viewer.html    # Fast tiled map viewer
+│       │   ├── orthomosaic_viewer.html  # GeoTIFF viewer
+│       │   ├── web_package/  # Deployment-ready web folder
+│       │   ├── odm_project/  # OpenDroneMap outputs
+│       │   └── reports/      # Processing reports & coverage maps
 │       ├── logs/             # Mission logs
 │       └── mission_config.json
 ├── .gitignore
@@ -152,6 +159,64 @@ Professional photogrammetry pipeline with multiple processing modes.
 - Processing reports (JSON)
 - Configurable quality settings
 
+**C. Web Tile Generation (NEW!)**
+- Generates fast-loading map tiles from orthomosaics
+- XYZ tile pyramid format (compatible with all web mapping libraries)
+- Automatic tiled viewer creation
+- Deployment-ready web package
+- Processing time: 5-15 minutes (depending on area size)
+
+**Web Output Features:**
+- **Tiled Viewer**: Interactive HTML map using Leaflet.js
+- **Fast Loading**: Only loads visible tiles (like Google Maps)
+- **Deployment Package**: Ready-to-upload web folder
+- **No Backend Required**: 100% client-side, works on any static host
+- **Mobile-Friendly**: Responsive design with touch controls
+
+**Automatic Web Generation:**
+After successful ODM processing, the system automatically:
+1. Generates map tiles from the orthomosaic (zoom levels 10-22)
+2. Creates a tiled viewer HTML file
+3. Creates a web deployment package
+
+**Manual Tile Generation:**
+```bash
+# Generate tiles from existing orthomosaic
+python image_processor.py --generate-tiles path/to/orthomosaic.tif --output output_dir
+
+# Or regenerate for existing mission
+cd missions/YourMission/outputs
+python ../../../image_processor.py --generate-tiles \
+  odm_project/mapping_*/odm_orthophoto/odm_orthophoto.tif \
+  --output .
+```
+
+**Viewing Options:**
+```bash
+# Option 1: Open tiled viewer directly
+open missions/YourMission/outputs/tiled_viewer.html
+
+# Option 2: Deploy web package
+cd missions/YourMission/outputs/web_package
+python3 -m http.server 8000
+# Then open http://localhost:8000
+
+# Option 3: Upload to static hosting
+# Upload web_package/ folder to GitHub Pages, Netlify, Vercel, etc.
+```
+
+**Performance Comparison:**
+
+| Viewer Type | File Size | Initial Load | Pan/Zoom | Works Offline |
+|-------------|-----------|--------------|----------|---------------|
+| GeoTIFF Viewer | 44MB download | ~30s | Slow | After download |
+| Tiled Viewer | ~2-5MB (visible area) | <3s | Instant | After tiles cached |
+
+**Tile Storage:**
+- Small area (<10 acres): ~100-500 tiles, 10-50 MB
+- Medium area (10-50 acres): ~500-2000 tiles, 50-200 MB
+- Large area (50-100 acres): ~2000-5000 tiles, 200-500 MB
+
 ## Dependencies
 
 ### Required
@@ -164,10 +229,23 @@ pip install exifread piexif
 **System Tools:**
 - Docker (for OpenDroneMap)
 - ImageMagick 7+ (for simple mosaics)
+- GDAL (for web tile generation)
 
 **OpenDroneMap:**
 ```bash
 docker pull opendronemap/odm
+```
+
+**GDAL (for tile generation):**
+```bash
+# macOS
+brew install gdal
+
+# Ubuntu/Debian
+sudo apt-get install gdal-bin python3-gdal
+
+# Or via pip
+pip install gdal
 ```
 
 ### Optional APIs
@@ -193,12 +271,13 @@ pip install exifread piexif
 **macOS:**
 ```bash
 brew install imagemagick
+brew install gdal
 brew install --cask docker
 ```
 
 **Linux:**
 ```bash
-apt-get install imagemagick docker.io
+apt-get install imagemagick docker.io gdal-bin python3-gdal
 ```
 
 ### 4. Setup OpenDroneMap
@@ -567,7 +646,27 @@ Then use it: `--drone my_custom_drone`
 
 ## License
 
-[Add your license here]
+MIT License
+
+Copyright (c) 2025 Chris Ballance
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ## Acknowledgments
 

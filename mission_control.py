@@ -174,7 +174,7 @@ class MissionControl:
         except Exception as e:
             print(f"Error monitoring container: {e}")
 
-    def process_images(self, use_odm: bool = False) -> bool:
+    def process_images(self, use_odm: bool = False, resume: bool = False) -> bool:
         """Process captured images into maps"""
         print("\n" + "="*60)
         print("🗺️  PROCESSING IMAGES")
@@ -194,6 +194,8 @@ class MissionControl:
 
         if use_odm:
             cmd.append('--use-odm')
+            if resume:
+                cmd.append('--resume')
         else:
             cmd.append('--simple-mosaic')
 
@@ -204,6 +206,27 @@ class MissionControl:
 
         except Exception as e:
             print(f"Error processing images: {e}")
+            return False
+
+    def show_processing_progress(self) -> bool:
+        """Show current processing progress"""
+        print("\n" + "="*60)
+        print("📊 PROCESSING PROGRESS")
+        print("="*60)
+
+        cmd = [
+            sys.executable,
+            'image_processor.py',
+            '--output', str(self.outputs_dir),
+            '--progress'
+        ]
+
+        try:
+            result = subprocess.run(cmd, text=True)
+            return result.returncode == 0
+
+        except Exception as e:
+            print(f"Error checking progress: {e}")
             return False
 
     def estimate_mission_stats(self) -> Dict:
@@ -373,8 +396,14 @@ Examples:
   # Generate flight plan
   python mission_control.py --mission TestArea --action plan --lat 40.7128 --lon -74.0060
 
-  # Process images with OpenDroneMap
+  # Process images with OpenDroneMap (new processing)
   python mission_control.py --mission TestArea --action process --use-odm
+
+  # Resume interrupted ODM processing
+  python mission_control.py --mission TestArea --action process --use-odm --resume
+
+  # Check processing progress
+  python mission_control.py --mission TestArea --action progress
         """
     )
     parser.add_argument("--mission", type=str, help="Mission name")
@@ -384,10 +413,12 @@ Examples:
     parser.add_argument("--area-m2", type=int, help="Estimated mapping area in square meters")
     parser.add_argument("--lat", type=float, help="Center latitude")
     parser.add_argument("--lon", type=float, help="Center longitude")
-    parser.add_argument("--action", choices=['plan', 'preflight', 'process', 'summary', 'monitor'],
+    parser.add_argument("--action", choices=['plan', 'preflight', 'process', 'summary', 'monitor', 'progress'],
                        help="Action to perform")
     parser.add_argument("--use-odm", action="store_true",
                        help="Use OpenDroneMap for processing (requires Docker)")
+    parser.add_argument("--resume", action="store_true",
+                       help="Resume interrupted ODM processing")
 
     args = parser.parse_args()
 
@@ -416,10 +447,13 @@ Examples:
             print("Error: Latitude and longitude required for flight planning")
 
     elif args.action == 'process':
-        control.process_images(use_odm=args.use_odm)
+        control.process_images(use_odm=args.use_odm, resume=args.resume)
 
     elif args.action == 'monitor':
         control.monitor_odm_processing()
+
+    elif args.action == 'progress':
+        control.show_processing_progress()
 
     print("\n" + "="*60)
     print("🎯 Mission Control Ready")
