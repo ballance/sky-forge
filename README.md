@@ -2,6 +2,12 @@
 
 Professional drone mapping toolkit for creating orthomosaics, 3D models, and terrain maps from aerial imagery.
 
+## Example Output
+
+![Web Tile Viewer Example](docs/images/tiled-viewer-example.png)
+
+*Interactive web viewer with opacity controls, coordinate display, and fast-loading map tiles*
+
 ## Quick Start
 
 ### 1. Installation
