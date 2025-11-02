@@ -1045,6 +1045,11 @@ class ImageProcessor:
             color: #4CAF50 !important;
         }}
 
+        /* Hide Leaflet Ukraine flag */
+        .leaflet-control-attribution a[href*="ukraine"] {{
+            display: none !important;
+        }}
+
         /* Performance indicator */
         #perf-indicator {{
             position: absolute;
@@ -1165,6 +1170,14 @@ class ImageProcessor:
 
         console.log('Tiled viewer loaded successfully!');
         console.log('Tile URL pattern: tiles/{{z}}/{{x}}/{{y}}.png');
+
+        // Remove Leaflet attribution link
+        setTimeout(function() {{
+            const leafletLink = document.querySelector('.leaflet-control-attribution a[href*="leafletjs.com"]');
+            if (leafletLink) {{
+                leafletLink.remove();
+            }}
+        }}, 100);
     </script>
 </body>
 </html>'''
@@ -1205,7 +1218,8 @@ class ImageProcessor:
         * {{ margin: 0; padding: 0; box-sizing: border-box; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }}
         #map {{ width: 100%; height: 100vh; }}
-        #info {{
+
+        #controls {{
             position: absolute;
             top: 10px;
             left: 60px;
@@ -1214,31 +1228,175 @@ class ImageProcessor:
             border-radius: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.2);
             z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
         }}
-        #info h2 {{ margin: 0 0 10px 0; font-size: 18px; color: #333; }}
-        #info p {{ margin: 5px 0; font-size: 14px; color: #666; }}
-        .badge {{ background: #4CAF50; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; }}
+
+        #controls h2 {{
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }}
+
+        .badge {{
+            background: #4CAF50;
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }}
+
+        .control-group {{
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }}
+
+        .control-group label {{
+            font-size: 14px;
+            color: #666;
+            font-weight: 500;
+        }}
+
+        #opacity-slider {{
+            width: 120px;
+            height: 6px;
+            cursor: pointer;
+        }}
+
+        #opacity-value {{
+            font-size: 14px;
+            color: #333;
+            font-weight: 600;
+            min-width: 45px;
+        }}
+
+        .btn {{
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        }}
+
+        .btn:hover {{
+            background: #45a049;
+        }}
+
+        #coordinates {{
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 13px;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }}
+
+        #coordinates div {{
+            margin: 2px 0;
+            color: #333;
+        }}
+
+        #coordinates span {{
+            font-weight: 600;
+            color: #4CAF50;
+        }}
+
+        /* Hide Leaflet Ukraine flag */
+        .leaflet-control-attribution a[href*="ukraine"] {{
+            display: none !important;
+        }}
     </style>
 </head>
 <body>
-    <div id="info">
+    <div id="controls">
         <h2>🗺️ {mission_name}</h2>
-        <p><span class="badge">Interactive Map</span></p>
+        <span class="badge">Interactive Map</span>
+
+        <div class="control-group">
+            <label for="opacity-slider">Opacity:</label>
+            <input type="range" id="opacity-slider" min="0" max="100" value="100">
+            <span id="opacity-value">100%</span>
+        </div>
+
+        <button class="btn" onclick="resetView()">Reset View</button>
     </div>
+
     <div id="map"></div>
+
+    <div id="coordinates">
+        <div>Lat: <span id="lat">--</span></div>
+        <div>Lon: <span id="lon">--</span></div>
+        <div>Zoom: <span id="zoom">--</span></div>
+    </div>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        // Initialize map
         const map = L.map('map').setView([0, 0], 15);
+
+        // Add base layer
         L.tileLayer('https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png', {{
             attribution: '© OpenStreetMap contributors',
             maxZoom: 19
         }}).addTo(map);
-        L.tileLayer('tiles/{{z}}/{{x}}/{{y}}.png', {{
+
+        // Add orthomosaic layer
+        const orthomosaicLayer = L.tileLayer('tiles/{{z}}/{{x}}/{{y}}.png', {{
             attribution: 'Orthomosaic © Drone Mapping',
             maxZoom: 22,
             opacity: 1.0
         }}).addTo(map);
+
+        // Add scale control
         L.control.scale({{ imperial: true, metric: true }}).addTo(map);
+
+        // Opacity control
+        const opacitySlider = document.getElementById('opacity-slider');
+        const opacityValue = document.getElementById('opacity-value');
+
+        opacitySlider.addEventListener('input', function() {{
+            const opacity = this.value / 100;
+            opacityValue.textContent = this.value + '%';
+            orthomosaicLayer.setOpacity(opacity);
+        }});
+
+        // Update coordinate display
+        map.on('mousemove', function(e) {{
+            document.getElementById('lat').textContent = e.latlng.lat.toFixed(6);
+            document.getElementById('lon').textContent = e.latlng.lng.toFixed(6);
+        }});
+
+        map.on('zoomend', function() {{
+            document.getElementById('zoom').textContent = map.getZoom();
+        }});
+
+        // Set initial zoom display
+        document.getElementById('zoom').textContent = map.getZoom();
+
+        // Reset view function
+        function resetView() {{
+            map.setView([0, 0], 15);
+        }}
+
+        // Remove Leaflet attribution link
+        setTimeout(function() {{
+            const leafletLink = document.querySelector('.leaflet-control-attribution a[href*="leafletjs.com"]');
+            if (leafletLink) {{
+                leafletLink.remove();
+            }}
+        }}, 100);
     </script>
 </body>
 </html>'''
