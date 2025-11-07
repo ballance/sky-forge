@@ -3,17 +3,11 @@
 # ====================
 # Mission Data (Large Files)
 # ====================
-# Exclude mission directories with images and outputs
-missions/*/captured_images/
-missions/*/outputs/
-missions/*/flight_plans/
-missions/*/logs/
-
-# Keep mission structure but not data
+# Exclude all missions except example_mission
+missions/*
 !missions/.gitkeep
-!missions/*/
-!missions/*/mission_config.json
-!missions/*/execution_checklist.txt
+!missions/example_mission/
+!missions/example_mission/**
 
 # ====================
 # OpenDroneMap Processing
